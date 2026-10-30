@@ -1,9 +1,7 @@
 from embeddings.encoder import TextEmbedder
-from storage.qdrant import QdrantStorage
-
-from generation.gigachat_client import GigaChatGenerator
-
 import re
+from storage.qdrant import QdrantStorage
+from generation.gigachat_client import GigaChatGenerator
 
 
 def normalize_source_id(value: str) -> str | None:
@@ -15,7 +13,7 @@ def normalize_source_id(value: str) -> str | None:
 
     # Извлекаем номер источника
     match = re.fullmatch(
-        r"S?(\d+)",
+        r"CTX-?(\d+)",
         value,
         re.IGNORECASE,
     )
@@ -23,7 +21,7 @@ def normalize_source_id(value: str) -> str | None:
     if not match:
         return None
 
-    return f"S{match.group(1)}"
+    return f"CTX-{match.group(1)}"
 
 
 class RAGService:
@@ -47,60 +45,58 @@ class RAGService:
         if not question.strip():
             raise ValueError("Вопрос не может быть пустым.")
 
-        # 1. Преобразуем вопрос в вектор
+        # Преобразуем вопрос в вектор
         query_vector = self.embedder.embed_query(question)
 
-        # 2. Ищем подходящие чанки в Qdrant
+        # Ищем подходящие чанки в Qdrant
         results = self.storage.search(
             query_vector=query_vector,
             limit=top_k,
         )
-
-        # 3. Если ничего не найдено, не вызываем LLM
         if not results:
             return {
                 "answer_markdown": (
-                    "В загруженных документах не найдена "
-                    "информация для ответа на вопрос."
+                    "В загруженных документах не найдена информация для ответа на вопрос."
                 ),
                 "sources": [],
                 "insufficient_information": True,
             }
 
-        # 4. Назначаем временные ID найденным источникам
+        # Назначаем временные ID найденным источникам
         contexts = []
 
         for index, result in enumerate(results, start=1):
             contexts.append({
-                "source_id": f"S{index}",
+                "source_id": f"CTX-{index}",
                 "text": result["text"],
             })
 
-        # 5. Генерируем ответ
+        # Генерируем ответ
         draft = self.generator.generate(
             question=question,
             contexts=contexts,
         )
 
-        # 6. Формируем карту реальных источников
+        # Формируем карту реальных источников
         source_map = {
             context["source_id"]: result
             for context, result in zip(contexts, results)
         }
 
-        # 7. Проверяем и нормализуем ID источников
-        used_ids = []
+        # Проверяем и нормализуем ID источников
+        used_ids = list(dict.fromkeys(
+            re.findall(
+                r"\[(CTX-\d+)\]",
+                draft.answer_markdown
+            )
+        ))
 
         for source_id in draft.used_source_ids:
             normalized_id = normalize_source_id(source_id)
 
-            if (
-                    normalized_id in source_map
-                    and normalized_id not in used_ids
-            ):
+            if (normalized_id in source_map and normalized_id not in used_ids):
                 used_ids.append(normalized_id)
 
-        # 8. Источники формируем самостоятельно
         sources = []
 
         for source_id in used_ids:

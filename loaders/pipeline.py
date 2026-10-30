@@ -1,5 +1,4 @@
 from pathlib import Path
-
 from loaders.models import DocumentContent
 from loaders.pdf_parser import extract_pdf_pages
 from loaders.validation import validate_pdf

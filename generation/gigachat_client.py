@@ -1,4 +1,3 @@
-
 import json
 import os
 
@@ -7,7 +6,6 @@ from gigachat import GigaChat
 from gigachat.models import Chat, Messages, MessagesRole
 
 from generation.models import AnswerDraft
-
 
 ANSWER_SCHEMA = {
     "type": "object",
@@ -34,7 +32,6 @@ ANSWER_SCHEMA = {
     "additionalProperties": False
 }
 
-
 SYSTEM_PROMPT = """
 Ты — интеллектуальный помощник, работающий с предоставленными документами.
 
@@ -51,7 +48,7 @@ SYSTEM_PROMPT = """
 6. Используй Markdown для оформления ответа:
    заголовки, списки, выделение важных терминов и примеры.
 7. После утверждений указывай идентификатор источника
-   в формате [S1], [S2] и т.д.
+   в формате [CTX-1], [CTX-2] и т.д.
 8. В used_source_ids указывай только те источники,
    которые действительно использованы в ответе.
 9. Не придумывай идентификаторы источников.
@@ -88,27 +85,26 @@ class GigaChatGenerator:
             )
 
     def generate(
-        self,
-        question: str,
-        contexts: list[dict],
+            self,
+            question: str,
+            contexts: list[dict],
     ) -> AnswerDraft:
-
         context_text = "\n\n".join(
             f"[{item['source_id']}]\n{item['text']}"
             for item in contexts
         )
 
         user_prompt = f"""
-Вопрос пользователя:
-
-{question}
-
-Контекст из найденных документов:
-
-{context_text}
-
-Подготовь ответ на вопрос, используя только предоставленный контекст.
-"""
+            Вопрос пользователя:
+            
+            {question}
+            
+            Контекст из найденных документов:
+            
+            {context_text}
+            
+            Подготовь ответ на вопрос, используя только предоставленный контекст.
+        """
 
         chat = Chat(
             model=self.model,
@@ -130,19 +126,13 @@ class GigaChatGenerator:
         )
 
         with GigaChat(
-            credentials=self.credentials,
-            scope=self.scope,
-            verify_ssl_certs=False,
+                credentials=self.credentials,
+                scope=self.scope,
+                verify_ssl_certs=False,
         ) as client:
-
             response = client.chat(chat)
 
         content = response.choices[0].message.content
-
-        data = json.loads(content)
-
-        content = response.choices[0].message.content
-
         data = json.loads(content)
 
         print("\n=== GIGACHAT RAW RESPONSE ===")
