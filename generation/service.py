@@ -1,26 +1,47 @@
-
 from embeddings.encoder import TextEmbedder
 from storage.qdrant import QdrantStorage
 
 from generation.gigachat_client import GigaChatGenerator
 
+import re
+
+
+def normalize_source_id(value: str) -> str | None:
+    if not isinstance(value, str):
+        return None
+
+    # Удаляем внешнее оформление
+    value = value.strip().strip("`'\"[]$").strip()
+
+    # Извлекаем номер источника
+    match = re.fullmatch(
+        r"S?(\d+)",
+        value,
+        re.IGNORECASE,
+    )
+
+    if not match:
+        return None
+
+    return f"S{match.group(1)}"
+
 
 class RAGService:
 
     def __init__(
-        self,
-        embedder: TextEmbedder,
-        storage: QdrantStorage,
-        generator: GigaChatGenerator,
+            self,
+            embedder: TextEmbedder,
+            storage: QdrantStorage,
+            generator: GigaChatGenerator,
     ):
         self.embedder = embedder
         self.storage = storage
         self.generator = generator
 
     def answer(
-        self,
-        question: str,
-        top_k: int = 3,
+            self,
+            question: str,
+            top_k: int = 3,
     ) -> dict:
 
         if not question.strip():
@@ -67,12 +88,17 @@ class RAGService:
             for context, result in zip(contexts, results)
         }
 
-        # 7. Проверяем ID, возвращённые моделью
-        used_ids = list(dict.fromkeys(
-            source_id
-            for source_id in draft.used_source_ids
-            if source_id in source_map
-        ))
+        # 7. Проверяем и нормализуем ID источников
+        used_ids = []
+
+        for source_id in draft.used_source_ids:
+            normalized_id = normalize_source_id(source_id)
+
+            if (
+                    normalized_id in source_map
+                    and normalized_id not in used_ids
+            ):
+                used_ids.append(normalized_id)
 
         # 8. Источники формируем самостоятельно
         sources = []

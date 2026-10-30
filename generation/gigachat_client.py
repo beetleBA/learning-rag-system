@@ -141,4 +141,11 @@ class GigaChatGenerator:
 
         data = json.loads(content)
 
+        content = response.choices[0].message.content
+
+        data = json.loads(content)
+
+        print("\n=== GIGACHAT RAW RESPONSE ===")
+        print(json.dumps(data, ensure_ascii=False, indent=4))
+
         return AnswerDraft.model_validate(data)
